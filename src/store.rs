@@ -1,6 +1,6 @@
 use std::{
-    fs::File,
-    io::{BufReader, BufWriter},
+    fs::{self, File},
+    io::BufReader,
     path::{Path, PathBuf},
     sync::LazyLock
 };
@@ -41,8 +41,8 @@ impl Store {
         })
     }
 
-    pub fn save(&mut self) -> color_eyre::Result {
-        serde_json::to_writer(BufWriter::new(File::create(&*PATH)?), &self)?;
+    pub fn save(&self) -> color_eyre::Result {
+        fs::write(&*PATH, serde_json::to_string(&self).unwrap())?;
 
         Ok(())
     }
