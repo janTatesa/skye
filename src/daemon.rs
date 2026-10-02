@@ -80,8 +80,8 @@ fn iterate(
             .min_by_key(|(_, (_, timestamp), _)| *timestamp)
         {
             Some((name, (milestone, finish), habit)) => {
-                let duration = finish
-                    .duration_until(Timestamp::now())
+                let duration = Timestamp::now()
+                    .duration_until(finish)
                     .try_into()
                     .unwrap_or_default();
                 smol::Timer::after(duration)
@@ -107,7 +107,7 @@ fn iterate(
             name
         } => {
             let notification_body = format!(
-                "You reached a {milestone} milestone without the bad habit of <i>{name}</i>. Congrats!",
+                "You reached a <b>{milestone}</b> milestone without the bad habit of <b>{name}</b>. Congrats!",
             );
             notification("Milestone", &notification_body)?;
 
