@@ -138,22 +138,25 @@ fn iterate(
 
             let mut body = String::new();
 
-            if section(
+            let habits = section(
                 "<b>Habits:</b>",
                 &store.positive_habits,
                 |habit| !habit.done_today(),
                 &mut body
-            ) || section(
+            );
+            let social = section(
                 "\n<b>Social:</b>",
                 &store.social_habits,
                 |habit| habit.pending(now),
                 &mut body
-            ) || section(
+            );
+            let tasks = section(
                 "\n<b>Tasks:</b>",
                 &store.tasks,
                 |task| task.queued,
                 &mut body
-            ) {
+            );
+            if habits || social || tasks {
                 notification("Reminder", &body)?;
                 *empty_reminders = 0;
                 *last_reminder = Some(Instant::now());

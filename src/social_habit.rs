@@ -47,8 +47,8 @@ impl SocialHabit {
         });
         let last_interaction = self
             .last_interaction
-            .map_or_default(|date| date.blue().underline().to_string());
-        println!("{name}{spacer}Frequency: {frequency}{spacer}{last_interaction}");
+            .map_or_default(|date| format!("{spacer}{}", date.blue().underline()));
+        println!("{name}{spacer}Frequency: {frequency}{last_interaction}");
     }
 }
 
