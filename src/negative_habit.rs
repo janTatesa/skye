@@ -150,8 +150,8 @@ impl NegativeHabit {
 
     pub fn span(&self, now: &Zoned) -> Span {
         let diff = ZonedDifference::new(now)
-            .smallest(Unit::Day)
-            .largest(Unit::Second);
+            .smallest(Unit::Second)
+            .largest(Unit::Day);
         self.last_done
             .to_zoned(now.time_zone().clone())
             .until(diff)
