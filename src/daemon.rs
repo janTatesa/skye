@@ -31,8 +31,14 @@ pub fn daemon(mut store: Store, remider_duration: Duration) -> color_eyre::Resul
     let mut watcher = notify::recommended_watcher(move |event| match event {
         Ok(notify::Event {
             kind: notify::EventKind::Any | notify::EventKind::Modify(_) | notify::EventKind::Other,
+            attrs,
             ..
-        }) => _ = smol::block_on(store_reload_tx.clone().send(())),
+        }) if attrs
+            .process_id()
+            .is_none_or(|pid| pid != std::process::id()) =>
+        {
+            _ = smol::block_on(store_reload_tx.clone().send(()));
+        }
         Ok(_) => {}
         Err(error) => log::error!("Watcher error: {error}")
     })?;
