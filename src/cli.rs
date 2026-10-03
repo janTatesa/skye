@@ -70,6 +70,7 @@ pub enum NegativeSubcommand {
 pub enum SocialSubcommand {
     Add {
         name: String,
+        #[arg(long, short, default_value_t = SocialHabitFrequency::Medium)]
         frequency: SocialHabitFrequency
     },
     Rename {
@@ -84,7 +85,6 @@ pub enum SocialSubcommand {
     },
     SetFrequency {
         name: Option<String>,
-        #[arg(long, short, default_value_t = SocialHabitFrequency::Medium)]
         frequency: SocialHabitFrequency
     },
     Show {
