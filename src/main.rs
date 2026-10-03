@@ -12,9 +12,10 @@ mod positive_habit;
 mod social_habit;
 mod task;
 
-use std::{io::stdout, time::Duration};
+use std::time::Duration;
 
 use clap::{CommandFactory, Parser};
+use clap_complete::{CompleteEnv, Shell};
 use jiff::Zoned;
 
 use crate::{
@@ -27,16 +28,27 @@ use crate::{
     social_habit::SocialHabit,
     store::Store,
     task::Task,
-    utils::{GetMutFilter, add, get_mut, remove, rename}
+    utils::{GetMutFilter, add, exit_with_error, get_mut, remove, rename}
 };
 
 fn main() -> color_eyre::Result {
     color_eyre::install()?;
+    CompleteEnv::with_factory(Cli::command).complete();
     let cli = Cli::parse();
     let mut store = Store::new()?;
     match cli.subcommand {
         Subcommand::Completions { shell } => {
-            clap_complete::generate(shell, &mut Cli::command(), "skye", &mut stdout());
+            let completions = match shell {
+                Shell::Bash => "source <(COMPLETE=bash skye)",
+                Shell::Elvish => "eval (E:COMPLETE=elvish skye | slurp)",
+                Shell::Fish => "COMPLETE=fish your_program | source",
+                Shell::PowerShell => {
+                    "$env:COMPLETE = \"powershell\"; your_program | Out-String | Invoke-Expression; Remove-Item Env:\\COMPLETE"
+                }
+                Shell::Zsh => "source <(COMPLETE=zsh your_program)",
+                _ => exit_with_error("Unsupported shell")
+            };
+            println!("{completions}");
         }
         Subcommand::Daemon {
             mins_between_reminders
@@ -48,17 +60,17 @@ fn main() -> color_eyre::Result {
         } => add(&mut store.positive_habits, name, PositiveHabit::default()),
         Subcommand::Positive {
             subcommand: PositiveSubcommand::Remove { name }
-        } => remove(&mut store.positive_habits, name)?,
+        } => remove(&mut store.positive_habits, &name),
         Subcommand::Positive {
             subcommand: PositiveSubcommand::Check { name }
         } => get_mut(
             &mut store.positive_habits,
-            name,
+            &name,
             Some(&GetMutFilter {
                 function: |habit| !habit.done_today(),
                 error: "Has already been checked"
             })
-        )?
+        )
         .check(),
         Subcommand::Positive {
             subcommand: PositiveSubcommand::Rename { old, new }
@@ -82,11 +94,11 @@ fn main() -> color_eyre::Result {
         } => rename(&mut store.negative_habits, &old, new),
         Subcommand::Negative {
             subcommand: NegativeSubcommand::Break { name }
-        } => get_mut(&mut store.negative_habits, name, None)?.r#break(&Zoned::now()),
+        } => get_mut(&mut store.negative_habits, &name, None).r#break(&Zoned::now()),
         Subcommand::Negative {
             subcommand: NegativeSubcommand::Remove { name }
         } => {
-            remove(&mut store.negative_habits, name)?;
+            remove(&mut store.negative_habits, &name);
         }
         Subcommand::Negative {
             subcommand: NegativeSubcommand::Show
@@ -104,13 +116,13 @@ fn main() -> color_eyre::Result {
         } => rename(&mut store.social_habits, &old, new),
         Subcommand::Social {
             subcommand: SocialSubcommand::Remove { name }
-        } => remove(&mut store.social_habits, name)?,
+        } => remove(&mut store.social_habits, &name),
         Subcommand::Social {
             subcommand: SocialSubcommand::SetFrequency { name, frequency }
-        } => get_mut(&mut store.social_habits, name, None)?.frequency = frequency,
+        } => get_mut(&mut store.social_habits, &name, None).frequency = frequency,
         Subcommand::Social {
-            subcommand: SocialSubcommand::AddInteraction { name }
-        } => get_mut(&mut store.social_habits, name, None)?.check(&Zoned::now()),
+            subcommand: SocialSubcommand::Check { name }
+        } => get_mut(&mut store.social_habits, &name, None).check(&Zoned::now()),
         Subcommand::Social {
             subcommand: SocialSubcommand::Show { filter }
         } => {
@@ -131,18 +143,18 @@ fn main() -> color_eyre::Result {
         } => rename(&mut store.tasks, &old, new),
         Subcommand::Task {
             subcommand: TaskSubcommand::Complete { name }
-        } => remove(&mut store.tasks, name)?,
+        } => remove(&mut store.tasks, &name),
         Subcommand::Task {
             subcommand: TaskSubcommand::Queue { name }
         } => {
             get_mut(
                 &mut store.tasks,
-                name,
+                &name,
                 Some(&GetMutFilter {
                     function: |task| !task.queued,
                     error: "Task is already queued"
                 })
-            )?
+            )
             .queued = true;
         }
         Subcommand::Task {
@@ -150,12 +162,12 @@ fn main() -> color_eyre::Result {
         } => {
             get_mut(
                 &mut store.tasks,
-                name,
+                &name,
                 Some(&GetMutFilter {
                     function: |task| task.queued,
                     error: "Task is not queued"
                 })
-            )?
+            )
             .queued = false;
         }
         Subcommand::Task {
