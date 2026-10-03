@@ -6,7 +6,7 @@ use futures::{
     future::pending
 };
 use indexmap::IndexMap;
-use jiff::{Timestamp, Zoned, civil::Time};
+use jiff::{Zoned, civil::Time};
 use notify::Watcher;
 use notify_rust::{Notification, Urgency};
 use smol::future::FutureExt as _;
@@ -80,8 +80,7 @@ fn iterate(
             .min_by_key(|(_, (_, timestamp), _)| *timestamp)
         {
             Some((name, (milestone, finish), habit)) => {
-                let duration = Timestamp::now()
-                    .duration_until(finish)
+                let duration: Duration = dbg!(now.timestamp().duration_until(finish))
                     .try_into()
                     .unwrap_or_default();
                 smol::Timer::after(duration)
@@ -124,7 +123,8 @@ fn iterate(
                 let items: Vec<_> = store
                     .iter()
                     .filter(|(_, item)| filter(*item))
-                    .flat_map(|(item, _)| ["\n - ", item])
+                    .flat_map(|(item, _)| [", ", item])
+                    .skip(1)
                     .collect();
                 if items.is_empty() {
                     return false;
@@ -139,19 +139,19 @@ fn iterate(
             let mut body = String::new();
 
             let habits = section(
-                "<b>Habits:</b>",
+                "<b>Habits: </b>",
                 &store.positive_habits,
                 |habit| !habit.done_today(),
                 &mut body
             );
             let social = section(
-                "\n<b>Social:</b>",
+                "\n<b>Social: </b>",
                 &store.social_habits,
                 |habit| habit.pending(now),
                 &mut body
             );
             let tasks = section(
-                "\n<b>Tasks:</b>",
+                "\n<b>Tasks: </b>",
                 &store.tasks,
                 |task| task.queued,
                 &mut body

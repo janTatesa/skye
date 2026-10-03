@@ -42,7 +42,7 @@ impl Store {
     }
 
     pub fn save(&self) -> color_eyre::Result {
-        fs::write(&*PATH, serde_json::to_string(&self).unwrap())?;
+        fs::write(&*PATH, serde_json::to_string_pretty(&self).unwrap())?;
 
         Ok(())
     }
