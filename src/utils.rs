@@ -49,7 +49,7 @@ pub fn add<T>(store: &mut IndexMap<String, T>, name: String, item: T) {
 }
 
 pub fn rename<T>(store: &mut IndexMap<String, T>, old: &str, new: String) {
-    if store.contains_key(old) {
+    if store.contains_key(&new) {
         exit_with_error("Item with the new name already exists!");
     }
 
