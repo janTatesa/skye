@@ -2,16 +2,18 @@ use clap::ValueEnum;
 use jiff::{Zoned, civil::Date};
 use owo_colors::{AnsiColors, OwoColorize, Style};
 use serde::{Deserialize, Serialize};
-use strum::Display;
+use strum::{AsRefStr, Display};
+
+use crate::{item::Item, store::Store};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SocialHabit {
     last_interaction: Option<Date>,
-    pub frequency: SocialHabitFrequency
+    pub frequency: Frequency
 }
 
 impl SocialHabit {
-    pub fn new(frequency: SocialHabitFrequency) -> Self {
+    pub fn new(frequency: Frequency) -> Self {
         Self {
             last_interaction: None,
             frequency
@@ -31,8 +33,35 @@ impl SocialHabit {
             date.duration_until(now.date()).as_hours() / 24 > self.frequency.days()
         })
     }
+}
 
-    pub fn display(&self, name: &str, now: &Zoned) {
+#[derive(
+    Debug, Serialize, Deserialize, Display, Clone, Copy, ValueEnum, PartialEq, Eq, PartialOrd, Ord,
+)]
+pub enum Frequency {
+    Low,
+    Medium,
+    High
+}
+
+impl Frequency {
+    pub fn days(self) -> i64 {
+        match self {
+            Frequency::Low => 30,
+            Frequency::Medium => 7,
+            Frequency::High => 2
+        }
+    }
+}
+
+impl Item for SocialHabit {
+    type Filter = Filter;
+
+    fn get_items_mut(store: &mut Store) -> &mut indexmap::IndexMap<String, Self> {
+        &mut store.social_habits
+    }
+
+    fn show(&self, name: &str, now: &Zoned) {
         let name = name.italic();
         let spacer = " • ".bright_black();
         let name = name.style(if self.pending(now) {
@@ -41,30 +70,42 @@ impl SocialHabit {
             Style::new().italic()
         });
         let frequency = self.frequency.color(match self.frequency {
-            SocialHabitFrequency::Low => AnsiColors::Green,
-            SocialHabitFrequency::Medium => AnsiColors::Yellow,
-            SocialHabitFrequency::High => AnsiColors::Red
+            Frequency::Low => AnsiColors::Green,
+            Frequency::Medium => AnsiColors::Yellow,
+            Frequency::High => AnsiColors::Red
         });
         let last_interaction = self
             .last_interaction
             .map_or_default(|date| format!("{spacer}{}", date.blue().underline()));
         println!("{name}{spacer}Frequency: {frequency}{last_interaction}");
     }
-}
 
-#[derive(Debug, Serialize, Deserialize, Display, Clone, Copy, ValueEnum)]
-pub enum SocialHabitFrequency {
-    Low,
-    Medium,
-    High
-}
-
-impl SocialHabitFrequency {
-    pub fn days(self) -> i64 {
-        match self {
-            SocialHabitFrequency::Low => 30,
-            SocialHabitFrequency::Medium => 7,
-            SocialHabitFrequency::High => 2
+    fn filter(&self, filter: Self::Filter, now: &Zoned) -> bool {
+        match filter {
+            Filter::Pending => self.pending(now),
+            Filter::NotPending => !self.pending(now)
         }
     }
+
+    fn sort(&self, other: &Self, now: &Zoned) -> std::cmp::Ordering {
+        self.pending(now)
+            .cmp(&other.pending(now))
+            .then(self.frequency.cmp(&other.frequency))
+    }
+
+    fn completion_help(&self, filter: Option<Self::Filter>, now: &Zoned) -> Option<String> {
+        if filter.is_none() && self.pending(now) {
+            Some(String::from("Pending"))
+        } else {
+            None
+        }
+    }
+}
+
+#[derive(ValueEnum, Clone, Copy, AsRefStr)]
+pub enum Filter {
+    #[strum(serialize = "Must be pending!")]
+    Pending,
+    #[strum(serialize = "Must not be pending!")]
+    NotPending
 }

@@ -1,9 +1,17 @@
 use std::{ffi::OsStr, num::NonZero};
 
-use clap::{ArgAction, Parser, ValueEnum};
-use clap_complete::{ArgValueCompleter, CompletionCandidate, Shell};
+use clap::{ArgAction, Parser, builder::StyledStr};
+use clap_complete::{ArgValueCompleter, CompletionCandidate, Shell, engine::ValueCompleter};
+use jiff::Zoned;
 
-use crate::{social_habit::SocialHabitFrequency, store::Store};
+use crate::{
+    item::Item,
+    negative_habit::NegativeHabit,
+    positive_habit::{self, PositiveHabit},
+    social_habit::{self, Frequency, SocialHabit},
+    store::Store,
+    task::{self, Task}
+};
 
 #[derive(Parser)]
 pub struct Cli {
@@ -42,22 +50,27 @@ pub enum Subcommand {
     }
 }
 
-macro_rules! completer {
-    ($name:ident, $items:ident) => {
-        fn $name(current: &OsStr) -> Vec<CompletionCandidate> {
-            let store = Store::new().unwrap();
-            let start: &str = current.try_into().unwrap();
-            store
-                .$items
-                .into_keys()
-                .filter(|name| name.starts_with(start))
-                .map(CompletionCandidate::new)
-                .collect()
-        }
-    };
+struct Completer<T: Item> {
+    filter: Option<T::Filter>
 }
 
-completer!(positive_habit_completer, positive_habits);
+impl<T: Item> ValueCompleter for Completer<T> {
+    fn complete(&self, current: &OsStr) -> Vec<CompletionCandidate> {
+        let now = &Zoned::now();
+        let mut store = Store::new().unwrap();
+        let start: &str = current.try_into().unwrap();
+        T::get_items_mut(&mut store)
+            .iter()
+            .filter(|(name, val)| {
+                name.starts_with(start) && self.filter.is_none_or(|filter| val.filter(filter, now))
+            })
+            .map(|(name, item)| {
+                CompletionCandidate::new(name)
+                    .help(item.completion_help(self.filter, now).map(StyledStr::from))
+            })
+            .collect()
+    }
+}
 
 #[derive(clap::Subcommand)]
 pub enum PositiveSubcommand {
@@ -65,30 +78,22 @@ pub enum PositiveSubcommand {
         name: String
     },
     Rename {
-        #[arg(add = ArgValueCompleter::new(positive_habit_completer))]
+        #[arg(add = ArgValueCompleter::new(Completer::<PositiveHabit> { filter: None }))]
         old: String,
         new: String
     },
     Remove {
-        #[arg(add = ArgValueCompleter::new(positive_habit_completer))]
+        #[arg(add = ArgValueCompleter::new(Completer::<PositiveHabit> { filter: None }))]
         name: String
     },
     Check {
-        #[arg(add = ArgValueCompleter::new(positive_habit_completer))]
+        #[arg(add = ArgValueCompleter::new(Completer::<PositiveHabit> { filter: Some(positive_habit::Filter::NotDone) }))]
         name: String
     },
     Show {
-        filter: Option<PositiveFilter>
+        filter: Option<positive_habit::Filter>
     }
 }
-
-#[derive(ValueEnum, Clone, Copy)]
-pub enum PositiveFilter {
-    Done,
-    NotDone
-}
-
-completer!(negative_habit_completer, negative_habits);
 
 #[derive(clap::Subcommand)]
 pub enum NegativeSubcommand {
@@ -96,93 +101,77 @@ pub enum NegativeSubcommand {
         name: String
     },
     Rename {
-        #[arg(add = ArgValueCompleter::new(negative_habit_completer))]
+        #[arg(add = ArgValueCompleter::new(Completer::<NegativeHabit> { filter: None }))]
         old: String,
         new: String
     },
     Remove {
-        #[arg(add = ArgValueCompleter::new(negative_habit_completer))]
+        #[arg(add = ArgValueCompleter::new(Completer::<NegativeHabit> { filter: None }))]
         name: String
     },
     Break {
-        #[arg(add = ArgValueCompleter::new(negative_habit_completer))]
+        #[arg(add = ArgValueCompleter::new(Completer::<NegativeHabit> { filter: None }))]
         name: String
     },
     Show
 }
 
-completer!(social_habit_completer, social_habits);
-
 #[derive(clap::Subcommand)]
 pub enum SocialSubcommand {
     Add {
         name: String,
-        #[arg(long, short, default_value_t = SocialHabitFrequency::Medium)]
-        frequency: SocialHabitFrequency
+        #[arg(long, short, default_value_t = Frequency::Medium)]
+        frequency: Frequency
     },
     Rename {
-        #[arg(add = ArgValueCompleter::new(social_habit_completer))]
+        #[arg(add = ArgValueCompleter::new(Completer::<SocialHabit> { filter: None }))]
         old: String,
         new: String
     },
     Remove {
-        #[arg(add = ArgValueCompleter::new(social_habit_completer))]
+        #[arg(add = ArgValueCompleter::new(Completer::<SocialHabit> { filter: None }))]
         name: String
     },
     Check {
-        #[arg(add = ArgValueCompleter::new(social_habit_completer))]
+        #[arg(add = ArgValueCompleter::new(Completer::<SocialHabit> { filter: None }))]
         name: String
     },
     SetFrequency {
-        #[arg(add = ArgValueCompleter::new(social_habit_completer))]
+        #[arg(add = ArgValueCompleter::new(Completer::<SocialHabit> { filter: None }))]
         name: String,
-        frequency: SocialHabitFrequency
+        frequency: Frequency
     },
     Show {
-        filter: Option<SocialFilter>
+        filter: Option<social_habit::Filter>
     }
 }
-
-#[derive(ValueEnum, Clone, Copy)]
-pub enum SocialFilter {
-    Pending,
-    NotPending
-}
-
-completer!(task_completer, tasks);
 
 #[derive(clap::Subcommand)]
 pub enum TaskSubcommand {
     Add {
         name: String,
         #[arg(long, short, action = ArgAction::SetTrue)]
-        queue: bool
+        queued: bool
     },
     Rename {
-        #[arg(add = ArgValueCompleter::new(task_completer))]
+        #[arg(add = ArgValueCompleter::new(Completer::<Task> { filter: None }))]
         old: String,
         new: String
     },
     #[command(alias = "remove")]
     Complete {
-        #[arg(add = ArgValueCompleter::new(task_completer))]
+        #[arg(add = ArgValueCompleter::new(Completer::<Task> { filter: None }))]
         name: String
     },
     Queue {
-        #[arg(add = ArgValueCompleter::new(task_completer))]
+        #[arg(add = ArgValueCompleter::new(Completer::<Task> { filter: Some(task::Filter::NotQueued) }))]
         name: String
     },
     Unqueue {
-        #[arg(add = ArgValueCompleter::new(task_completer))]
+        #[arg(add = ArgValueCompleter::new(Completer::<Task> { filter: Some(task::Filter::Queued) } ))]
         name: String
     },
     Show {
-        filter: Option<TaskFilter>
+        filter: Option<task::Filter>
     }
-}
-
-#[derive(ValueEnum, Clone, Copy)]
-pub enum TaskFilter {
-    NotQueued,
-    Queued
 }

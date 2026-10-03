@@ -1,7 +1,13 @@
+use std::cmp::Ordering;
+
+use clap::ValueEnum;
+use indexmap::IndexMap;
+use jiff::Zoned;
 use owo_colors::{OwoColorize, Style};
 use serde::{Deserialize, Serialize};
+use strum::AsRefStr;
 
-use crate::utils;
+use crate::{item::Item, store::Store, utils};
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct PositiveHabit {
@@ -47,8 +53,31 @@ impl PositiveHabit {
     pub fn done_today(&self) -> bool {
         self.done_today
     }
+}
 
-    pub fn display(&self, name: &str) {
+fn streak_text(streak: u32) -> String {
+    let color = utils::days_to_color(streak);
+    streak.color(color).bold().to_string()
+}
+
+impl Item for PositiveHabit {
+    type Filter = Filter;
+    fn filter(&self, filter: Filter, _now: &Zoned) -> bool {
+        match filter {
+            Filter::Done => self.done_today,
+            Filter::NotDone => !self.done_today
+        }
+    }
+
+    fn sort(&self, other: &Self, _now: &Zoned) -> Ordering {
+        self.done_today.cmp(&other.done_today)
+    }
+
+    fn get_items_mut(store: &mut Store) -> &mut IndexMap<String, Self> {
+        &mut store.positive_habits
+    }
+
+    fn show(&self, name: &str, _now: &Zoned) {
         let spacer = " • ".bright_black();
 
         let name = name.style(if self.done_today() {
@@ -73,7 +102,10 @@ impl PositiveHabit {
     }
 }
 
-fn streak_text(streak: u32) -> String {
-    let color = utils::days_to_color(streak);
-    streak.color(color).bold().to_string()
+#[derive(ValueEnum, Clone, Copy, AsRefStr)]
+pub enum Filter {
+    #[strum(serialize = "Must be done!")]
+    Done,
+    #[strum(serialize = "Must not be done!")]
+    NotDone
 }

@@ -5,15 +5,18 @@ use futures::{
     channel::mpsc::{self, UnboundedReceiver},
     future::pending
 };
-use indexmap::IndexMap;
 use jiff::{Zoned, civil::Time};
 use notify::Watcher;
 use notify_rust::{Notification, Urgency};
 use smol::future::FutureExt as _;
 
 use crate::{
+    item::Item,
     negative_habit::{Milestone, NegativeHabit},
-    store::Store
+    positive_habit::{self, PositiveHabit},
+    social_habit::{self, SocialHabit},
+    store::Store,
+    task::{self, Task}
 };
 
 enum DaemonCommand<'a> {
@@ -26,7 +29,7 @@ enum DaemonCommand<'a> {
     Reminder
 }
 
-pub fn daemon(mut store: Store, remider_duration: Duration) -> color_eyre::Result {
+pub fn daemon(store: &mut Store, remider_duration: Duration) -> color_eyre::Result {
     let (store_reload_tx, mut store_reload_rx) = mpsc::unbounded();
     let mut watcher = notify::recommended_watcher(move |event| match event {
         Ok(notify::Event {
@@ -48,7 +51,7 @@ pub fn daemon(mut store: Store, remider_duration: Duration) -> color_eyre::Resul
     let mut empty_reminders = 0;
     loop {
         if let Err(error) = iterate(
-            &mut store,
+            store,
             &mut store_reload_rx,
             &mut last_reminder,
             remider_duration,
@@ -120,50 +123,43 @@ fn iterate(
             store.save()?;
         }
         DaemonCommand::Reminder => {
-            fn section<T>(
+            fn section<T: Item>(
                 title: &str,
-                store: &IndexMap<String, T>,
-                filter: impl Fn(&T) -> bool,
-                body: &mut String
+                store: &mut Store,
+                filter: T::Filter,
+                body: &mut String,
+                now: &Zoned
             ) -> bool {
-                let items: Vec<_> = store
+                let mut items: Vec<_> = T::get_items_mut(store)
                     .iter()
-                    .filter(|(_, item)| filter(*item))
-                    .flat_map(|(item, _)| [", ", item])
-                    .skip(1)
+                    .filter(|(_, item)| item.filter(filter, now))
                     .collect();
+
                 if items.is_empty() {
                     return false;
                 }
 
+                items.sort_by(|(_, a), (_, b)| b.sort(a, now));
+
                 body.push_str(title);
-                body.extend(items);
+                body.extend(items.into_iter().flat_map(|(item, _)| [", ", item]).skip(1));
 
                 true
             }
 
-            let mut body = String::new();
+            let body = &mut String::new();
 
-            let habits = section(
-                "<b>Habits: </b>",
-                &store.positive_habits,
-                |habit| !habit.done_today(),
-                &mut body
-            );
-            let social = section(
-                "\n<b>Social: </b>",
-                &store.social_habits,
-                |habit| habit.pending(now),
-                &mut body
-            );
-            let tasks = section(
-                "\n<b>Tasks: </b>",
-                &store.tasks,
-                |task| task.queued,
-                &mut body
-            );
+            let filter = positive_habit::Filter::NotDone;
+            let habits = section::<PositiveHabit>("<b>Habits: </b>", store, filter, body, now);
+
+            let filter = social_habit::Filter::Pending;
+            let social = section::<SocialHabit>("\n<b>Social: </b>", store, filter, body, now);
+
+            let filter = task::Filter::Queued;
+            let tasks = section::<Task>("\n<b>Tasks: </b>", store, filter, body, now);
+
             if habits || social || tasks {
-                notification("Reminder", &body)?;
+                notification("Reminder", body)?;
                 *empty_reminders = 0;
                 *last_reminder = Some(Instant::now());
             } else {

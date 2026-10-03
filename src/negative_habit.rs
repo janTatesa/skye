@@ -1,10 +1,15 @@
 use std::{cmp::Ordering, fmt::Display};
 
+use indexmap::IndexMap;
 use jiff::{Span, SpanRelativeTo, Timestamp, Unit, Zoned, ZonedDifference};
 use owo_colors::OwoColorize;
 use serde::{Deserialize, Serialize};
 
-use crate::utils;
+use crate::{
+    item::{Item, NoFilter},
+    store::Store,
+    utils::{self}
+};
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct NegativeHabit {
@@ -158,26 +163,6 @@ impl NegativeHabit {
             .unwrap()
     }
 
-    pub fn display(&self, name: &str, now: &Zoned) {
-        let spacer = " • ".bright_black();
-        let span = self.span(now);
-        let record = self
-            .record
-            .map(|record| {
-                if span.compare(record).unwrap() == Ordering::Less {
-                    format!("{spacer}{}", "That's a new record!".green().bold())
-                } else {
-                    format!("{spacer}Record {}", span_text(record))
-                }
-            })
-            .unwrap_or_default();
-        println!(
-            "{}{spacer}Time without it: {}{record}",
-            name.italic(),
-            span_text(span)
-        );
-    }
-
     pub fn record(&self) -> Option<Span> {
         self.record
     }
@@ -199,4 +184,32 @@ fn span_text(span: Span) -> String {
     .collect::<Vec<_>>()
     .join(" ");
     time.color(color).to_string()
+}
+
+impl Item for NegativeHabit {
+    type Filter = NoFilter;
+
+    fn get_items_mut(store: &mut Store) -> &mut IndexMap<String, Self> {
+        &mut store.negative_habits
+    }
+
+    fn show(&self, name: &str, now: &Zoned) {
+        let spacer = " • ".bright_black();
+        let span = self.span(now);
+        let record = self
+            .record
+            .map(|record| {
+                if span.compare(record).unwrap() == Ordering::Less {
+                    format!("{spacer}{}", "That's a new record!".green().bold())
+                } else {
+                    format!("{spacer}Record {}", span_text(record))
+                }
+            })
+            .unwrap_or_default();
+        println!(
+            "{}{spacer}Time without it: {}{record}",
+            name.italic(),
+            span_text(span)
+        );
+    }
 }
