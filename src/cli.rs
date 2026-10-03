@@ -84,6 +84,7 @@ pub enum SocialSubcommand {
     },
     SetFrequency {
         name: Option<String>,
+        #[arg(long, short, default_value_t = SocialHabitFrequency::Medium)]
         frequency: SocialHabitFrequency
     },
     Show {
