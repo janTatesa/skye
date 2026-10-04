@@ -65,7 +65,7 @@ impl<T: Item> ValueCompleter for Completer<T> {
                 name.starts_with(start) && self.filter.is_none_or(|filter| val.filter(filter, now))
             })
             .collect();
-        items.sort_by(|(_, a), (_, b)| a.sort(b, now));
+        items.sort_by(|(_, a), (_, b)| b.sort(a, now));
         items
             .into_iter()
             .map(|(name, item)| {
