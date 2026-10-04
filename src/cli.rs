@@ -59,11 +59,15 @@ impl<T: Item> ValueCompleter for Completer<T> {
         let now = &Zoned::now();
         let mut store = Store::new().unwrap();
         let start: &str = current.try_into().unwrap();
-        T::get_items_mut(&mut store)
+        let mut items: Vec<_> = T::get_items_mut(&mut store)
             .iter()
             .filter(|(name, val)| {
                 name.starts_with(start) && self.filter.is_none_or(|filter| val.filter(filter, now))
             })
+            .collect();
+        items.sort_by(|(_, a), (_, b)| a.sort(b, now));
+        items
+            .into_iter()
             .map(|(name, item)| {
                 CompletionCandidate::new(name)
                     .help(item.completion_help(self.filter, now).map(StyledStr::from))
