@@ -1,7 +1,7 @@
 use std::{cmp::Ordering, fmt::Display};
 
 use indexmap::IndexMap;
-use jiff::{Span, SpanRelativeTo, Timestamp, Unit, Zoned, ZonedDifference};
+use jiff::{Span, SpanCompare, SpanRelativeTo, Timestamp, Unit, Zoned, ZonedDifference};
 use owo_colors::OwoColorize;
 use serde::{Deserialize, Serialize};
 
@@ -193,23 +193,23 @@ impl Item for NegativeHabit {
         &mut store.negative_habits
     }
 
-    fn show(&self, name: &str, now: &Zoned) {
+    fn show(&self, name: &str, _filter: Option<NoFilter>, now: &Zoned) {
         let spacer = " • ".bright_black();
         let span = self.span(now);
         let record = self
             .record
             .map(|record| {
-                if span.compare(record).unwrap() == Ordering::Less {
+                if span
+                    .compare(SpanCompare::from(record).days_are_24_hours())
+                    .unwrap()
+                    == Ordering::Less
+                {
                     format!("{spacer}{}", "That's a new record!".green().bold())
                 } else {
                     format!("{spacer}Record {}", span_text(record))
                 }
             })
             .unwrap_or_default();
-        println!(
-            "{}{spacer}Time without it: {}{record}",
-            name.italic(),
-            span_text(span)
-        );
+        println!("{name}{spacer}Time without it: {}{record}", span_text(span));
     }
 }

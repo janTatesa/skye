@@ -1,6 +1,6 @@
 use clap::ValueEnum;
 use jiff::{Zoned, civil::Date};
-use owo_colors::{AnsiColors, OwoColorize, Style};
+use owo_colors::{AnsiColors, OwoColorize};
 use serde::{Deserialize, Serialize};
 use strum::{AsRefStr, Display};
 
@@ -28,9 +28,9 @@ impl SocialHabit {
         self.last_interaction = Some(now.date());
     }
 
-    pub fn pending(&self, now: &Zoned) -> bool {
-        self.last_interaction().is_none_or(|date| {
-            date.duration_until(now.date()).as_hours() / 24 > self.frequency.days()
+    pub fn days_pending(&self, now: &Zoned) -> Option<u32> {
+        self.last_interaction().map(|date| {
+            (date.duration_until(now.date()).as_hours() / 24 - self.frequency.days()).max(0) as u32
         })
     }
 }
@@ -61,14 +61,8 @@ impl Item for SocialHabit {
         &mut store.social_habits
     }
 
-    fn show(&self, name: &str, now: &Zoned) {
-        let name = name.italic();
+    fn show(&self, name: &str, filter: Option<Filter>, now: &Zoned) {
         let spacer = " • ".bright_black();
-        let name = name.style(if self.pending(now) {
-            Style::new().italic().bold().yellow()
-        } else {
-            Style::new().italic()
-        });
         let frequency = self.frequency.color(match self.frequency {
             Frequency::Low => AnsiColors::Green,
             Frequency::Medium => AnsiColors::Yellow,
@@ -77,24 +71,31 @@ impl Item for SocialHabit {
         let last_interaction = self
             .last_interaction
             .map_or_default(|date| format!("{spacer}{}", date.blue().underline()));
-        println!("{name}{spacer}Frequency: {frequency}{last_interaction}");
+        let pending = if self.days_pending(now).is_none_or(|days| days > 0) && filter.is_none() {
+            "[Pending]".yellow().to_string()
+        } else {
+            String::new()
+        };
+
+        println!("{pending} {name}{spacer}Frequency: {frequency}{last_interaction}");
     }
 
     fn filter(&self, filter: Self::Filter, now: &Zoned) -> bool {
         match filter {
-            Filter::Pending => self.pending(now),
-            Filter::NotPending => !self.pending(now)
+            Filter::Pending => self.days_pending(now).is_none_or(|days| days > 0),
+            Filter::NotPending => self.days_pending(now) == Some(0)
         }
     }
 
     fn sort(&self, other: &Self, now: &Zoned) -> std::cmp::Ordering {
-        self.pending(now)
-            .cmp(&other.pending(now))
+        self.days_pending(now)
+            .unwrap_or(u32::MAX)
+            .cmp(&other.days_pending(now).unwrap_or(u32::MAX))
             .then(self.frequency.cmp(&other.frequency))
     }
 
     fn completion_help(&self, filter: Option<Self::Filter>, now: &Zoned) -> Option<String> {
-        if filter.is_none() && self.pending(now) {
+        if filter.is_none() && self.days_pending(now).is_none_or(|days| days > 0) {
             Some(String::from("Pending"))
         } else {
             None

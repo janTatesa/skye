@@ -2,8 +2,16 @@ use std::cmp::Ordering;
 
 use indexmap::IndexMap;
 use jiff::Zoned;
+use owo_colors::OwoColorize;
 
-use crate::{store::Store, utils::exit_with_error};
+use crate::{
+    negative_habit::NegativeHabit,
+    positive_habit::{self, PositiveHabit},
+    social_habit::{self, SocialHabit},
+    store::Store,
+    task::{self, Task},
+    utils::exit_with_error
+};
 
 #[derive(Clone, Copy)]
 pub struct NoFilter;
@@ -18,7 +26,7 @@ pub trait Item: Sized {
 
     fn get_items_mut(store: &mut Store) -> &mut IndexMap<String, Self>;
 
-    fn show(&self, name: &str, now: &Zoned);
+    fn show(&self, name: &str, filter: Option<Self::Filter>, now: &Zoned);
 
     fn filter(&self, filter: Self::Filter, now: &Zoned) -> bool {
         let _ = (filter, now);
@@ -90,6 +98,21 @@ pub fn show<T: Item>(store: &mut Store, filter: Option<T::Filter>, now: &Zoned) 
         .collect();
     items.sort_by(|(_, a), (_, b)| b.sort(a, now));
     for (name, item) in items {
-        item.show(name, now);
+        print!(" ");
+        item.show(name, filter, now);
     }
+}
+
+pub fn show_all(store: &mut Store, now: &Zoned, pending: bool) {
+    println!("{}", "Positive habits".bold());
+    let filter = pending.then_some(positive_habit::Filter::NotDone);
+    show::<PositiveHabit>(store, filter, now);
+    if !pending {
+        println!("\n{}", "Negative habits".bold());
+        show::<NegativeHabit>(store, None, now);
+    }
+    println!("\n{}", "Social habits".bold());
+    show::<SocialHabit>(store, pending.then_some(social_habit::Filter::Pending), now);
+    println!("\n{}", "Tasks".bold());
+    show::<Task>(store, pending.then_some(task::Filter::Queued), now);
 }

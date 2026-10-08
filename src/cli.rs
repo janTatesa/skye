@@ -28,6 +28,10 @@ pub enum Subcommand {
         #[arg(long, short, default_value_t = NonZero::new(30).unwrap())]
         mins_between_reminders: NonZero<u64>
     },
+    ShowAll {
+        #[arg(long, short)]
+        pending: bool
+    },
     /// Manage positive habits
     Positive {
         #[command(subcommand)]

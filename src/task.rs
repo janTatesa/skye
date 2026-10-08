@@ -3,7 +3,7 @@ use std::cmp::Ordering;
 use clap::ValueEnum;
 use indexmap::IndexMap;
 use jiff::Zoned;
-use owo_colors::{OwoColorize, Style};
+use owo_colors::OwoColorize;
 use serde::{Deserialize, Serialize};
 use strum::AsRefStr;
 
@@ -21,14 +21,14 @@ impl Item for Task {
         &mut store.tasks
     }
 
-    fn show(&self, name: &str, _now: &Zoned) {
-        let style = if self.queued {
-            Style::new().bold().yellow().italic()
+    fn show(&self, name: &str, filter: Option<Filter>, _now: &Zoned) {
+        let queued = if self.queued && filter.is_none() {
+            "[Queued]".yellow().to_string()
         } else {
-            Style::new().italic()
+            String::new()
         };
 
-        println!("{}", name.style(style));
+        println!("{queued} {name}");
     }
 
     fn filter(&self, filter: Filter, _now: &Zoned) -> bool {

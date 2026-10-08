@@ -22,7 +22,7 @@ use crate::{
     cli::{
         Cli, NegativeSubcommand, PositiveSubcommand, SocialSubcommand, Subcommand, TaskSubcommand
     },
-    item::{add, get_mut, remove, rename, show},
+    item::{add, get_mut, remove, rename, show, show_all},
     negative_habit::NegativeHabit,
     positive_habit::PositiveHabit,
     social_habit::SocialHabit,
@@ -122,7 +122,8 @@ fn main() -> color_eyre::Result {
         } => get_mut::<Task>(store, &name, Some(task::Filter::Queued), now).queued = false,
         Subcommand::Task {
             subcommand: TaskSubcommand::Show { filter }
-        } => show::<Task>(store, filter, now)
+        } => show::<Task>(store, filter, now),
+        Subcommand::ShowAll { pending } => show_all(store, now, pending)
     }
 
     store.save()

@@ -3,7 +3,7 @@ use std::cmp::Ordering;
 use clap::ValueEnum;
 use indexmap::IndexMap;
 use jiff::Zoned;
-use owo_colors::{OwoColorize, Style};
+use owo_colors::OwoColorize;
 use serde::{Deserialize, Serialize};
 use strum::AsRefStr;
 
@@ -49,10 +49,6 @@ impl PositiveHabit {
             streak_text(self.streak),
         );
     }
-
-    pub fn done_today(&self) -> bool {
-        self.done_today
-    }
 }
 
 fn streak_text(streak: u32) -> String {
@@ -77,16 +73,8 @@ impl Item for PositiveHabit {
         &mut store.positive_habits
     }
 
-    fn show(&self, name: &str, _now: &Zoned) {
+    fn show(&self, name: &str, filter: Option<Filter>, _now: &Zoned) {
         let spacer = " • ".bright_black();
-
-        let name = name.style(if self.done_today() {
-            Style::new().italic()
-        } else {
-            Style::new().italic().bold().yellow()
-        });
-        let name = name.italic();
-
         let record = self
             .record
             .map(|record| {
@@ -98,7 +86,12 @@ impl Item for PositiveHabit {
             })
             .unwrap_or_default();
         let streak_text = streak_text(self.streak);
-        println!("{name}{spacer}Streak: {streak_text}{record}");
+        let pending = if !self.done_today && filter.is_none() {
+            "[Pending]".yellow().to_string()
+        } else {
+            String::new()
+        };
+        println!("{pending} {name}{spacer}Streak: {streak_text}{record}");
     }
 }
 
