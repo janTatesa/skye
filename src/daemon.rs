@@ -1,5 +1,6 @@
 use std::{
     fs, io,
+    panic::{self},
     path::PathBuf,
     pin::Pin,
     sync::LazyLock,
@@ -54,6 +55,12 @@ pub struct Daemon {
 
 impl Daemon {
     pub fn run(store: Store, remider_duration: Duration) -> color_eyre::Result {
+        let hook = panic::take_hook();
+        panic::set_hook(Box::new(move |info| {
+            _ = notification("Panic", info.payload_as_str().unwrap_or_default());
+            hook(info);
+        }));
+
         if SOCKET_PATH.exists() {
             error!("Socket already exists, removing it");
             fs::remove_file(&*SOCKET_PATH)?;
