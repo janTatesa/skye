@@ -116,7 +116,7 @@ impl NegativeHabit {
         let record_msg = record_msg.bold();
         println!(
             "Crap. You lasted {} without it. {record_msg}",
-            span_text(span).color(utils::days_to_color(span.total(Unit::Day).unwrap() as u32))
+            span_text(span).color(span_color(span))
         );
         let span = now
             .datetime()
