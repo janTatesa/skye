@@ -136,6 +136,7 @@ impl NegativeHabit {
         };
         self.last_done = now.timestamp();
         self.last_milestone = None;
+        self.record_notified = false;
     }
 
     pub fn next_milestone(&self, now: &Zoned) -> (Milestone, Timestamp) {

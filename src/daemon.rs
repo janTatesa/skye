@@ -204,13 +204,17 @@ impl Daemon {
                     Ok(store)
                 });
             }
-            Command::NegativeHabitRecord { name } => notification(
-                "Habit record",
-                &format!(
-                    "Record of habit <b>{name}<b> with the duration of <b>{}<b>",
-                    span_text(self.store.negative_habits[&name].span(&self.now))
-                )
-            )?,
+            Command::NegativeHabitRecord { name } => {
+                notification(
+                    "Habit record",
+                    &format!(
+                        "Record of habit <b>{name}<b> with the duration of <b>{}<b>",
+                        span_text(self.store.negative_habits[&name].span(&self.now))
+                    )
+                )?;
+                self.store.negative_habits[&name].record_notified = true;
+                self.store.save()?;
+            }
             Command::NextDay => {
                 info!("Reloading");
                 self.store = Store::new()?;
