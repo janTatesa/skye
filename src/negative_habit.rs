@@ -1,8 +1,8 @@
 use std::{cmp::Ordering, fmt::Display};
 
 use indexmap::IndexMap;
-use jiff::{Span, SpanCompare, SpanRelativeTo, Timestamp, Unit, Zoned, ZonedDifference};
-use owo_colors::OwoColorize;
+use jiff::{Span, SpanCompare, SpanRelativeTo, SpanTotal, Timestamp, Unit, Zoned, ZonedDifference};
+use owo_colors::{AnsiColors, OwoColorize};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -15,7 +15,9 @@ use crate::{
 pub struct NegativeHabit {
     last_done: Timestamp,
     pub last_milestone: Option<Milestone>,
-    record: Option<jiff::Span>
+    record: Option<jiff::Span>,
+    #[serde(default)]
+    pub record_notified: bool
 }
 
 impl Default for NegativeHabit {
@@ -23,7 +25,8 @@ impl Default for NegativeHabit {
         Self {
             last_done: Timestamp::now(),
             last_milestone: Option::default(),
-            record: Option::default()
+            record: Option::default(),
+            record_notified: false
         }
     }
 }
@@ -100,10 +103,11 @@ impl Display for Milestone {
 impl NegativeHabit {
     pub fn r#break(&mut self, now: &Zoned) {
         let span = self.span(now);
-        let record_msg = if self
-            .record()
-            .is_some_and(|record| span.compare(record).unwrap() == Ordering::Greater)
-        {
+        let record_msg = if self.record().is_some_and(|record| {
+            span.compare(SpanCompare::from(record).days_are_24_hours())
+                .unwrap()
+                == Ordering::Greater
+        }) {
             "That is a new record!"
         } else {
             ""
@@ -112,7 +116,7 @@ impl NegativeHabit {
         let record_msg = record_msg.bold();
         println!(
             "Crap. You lasted {} without it. {record_msg}",
-            span_text(span)
+            span_text(span).color(utils::days_to_color(span.total(Unit::Day).unwrap() as u32))
         );
         let span = now
             .datetime()
@@ -168,9 +172,8 @@ impl NegativeHabit {
     }
 }
 
-fn span_text(span: Span) -> String {
-    let color = utils::days_to_color(span.get_days() as u32);
-    let time = [
+pub fn span_text(span: Span) -> String {
+    [
         (span.get_years(), "y"),
         (span.get_months() as i16, "m"),
         (span.get_days() as i16, "d"),
@@ -182,8 +185,7 @@ fn span_text(span: Span) -> String {
     .skip_while(|(u, _)| *u == 0)
     .map(|(u, i)| format!("{u}{i}"))
     .collect::<Vec<_>>()
-    .join(" ");
-    time.color(color).to_string()
+    .join(" ")
 }
 
 impl Item for NegativeHabit {
@@ -206,10 +208,24 @@ impl Item for NegativeHabit {
                 {
                     format!("{spacer}{}", "That's a new record!".green().bold())
                 } else {
-                    format!("{spacer}Record {}", span_text(record))
+                    format!(
+                        "{spacer}Record {}",
+                        span_text(record).color(span_color(span))
+                    )
                 }
             })
             .unwrap_or_default();
-        println!("{name}{spacer}Time without it: {}{record}", span_text(span));
+        println!(
+            "{name}{spacer}Time without it: {}{record}",
+            span_text(span).color(span_color(span))
+        );
     }
+}
+
+fn span_color(span: Span) -> AnsiColors {
+    utils::days_to_color(
+        // TODO: make this more accuratte
+        span.total(SpanTotal::from(Unit::Day).days_are_24_hours())
+            .unwrap() as u32
+    )
 }
