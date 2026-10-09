@@ -165,6 +165,7 @@ impl Daemon {
             Command::ReloadStore(store) => {
                 info!("Reloading");
                 self.store = store?;
+                self.store_future = Box::pin(pending());
             }
             Command::Milestone { milestone, name } => {
                 let notification_body = format!(
