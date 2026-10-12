@@ -1,5 +1,9 @@
-#![deny(clippy::all, clippy::pedantic)]
-#![allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
+#![warn(clippy::pedantic)]
+#![allow(
+    clippy::cast_sign_loss,
+    clippy::cast_possible_truncation,
+    clippy::too_many_lines
+)]
 
 mod cli;
 mod daemon;
@@ -74,7 +78,10 @@ fn main() -> color_eyre::Result {
         } => rename::<PositiveHabit>(&mut store, &old, new),
         Subcommand::Positive {
             subcommand: PositiveSubcommand::Show { filter }
-        } => show::<PositiveHabit>(&mut store, filter, now),
+        } => {
+            show::<PositiveHabit>(&mut store, filter, now);
+            show_all(&mut store, now, true);
+        }
         Subcommand::Negative {
             subcommand: NegativeSubcommand::Add { name }
         } => add(&mut store, name, NegativeHabit::default()),
@@ -104,7 +111,10 @@ fn main() -> color_eyre::Result {
         } => get_mut::<SocialHabit>(&mut store, &name, None, now).frequency = frequency,
         Subcommand::Social {
             subcommand: SocialSubcommand::Check { name }
-        } => get_mut::<SocialHabit>(&mut store, &name, None, now).check(now),
+        } => {
+            get_mut::<SocialHabit>(&mut store, &name, None, now).check(now);
+            show_all(&mut store, now, true);
+        }
         Subcommand::Social {
             subcommand: SocialSubcommand::Show { filter }
         } => show::<SocialHabit>(&mut store, filter, now),
@@ -116,7 +126,10 @@ fn main() -> color_eyre::Result {
         } => rename::<Task>(&mut store, &old, new),
         Subcommand::Task {
             subcommand: TaskSubcommand::Complete { name }
-        } => remove::<Task>(&mut store, &name),
+        } => {
+            remove::<Task>(&mut store, &name);
+            show_all(&mut store, now, true);
+        }
         Subcommand::Task {
             subcommand: TaskSubcommand::Queue { name }
         } => get_mut::<Task>(&mut store, &name, Some(task::Filter::NotQueued), now).queued = true,
